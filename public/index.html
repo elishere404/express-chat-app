@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chatroom</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <style>
+        body {
+            font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+            background-color: #c0c0c0;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            display: none;
+            margin: 20px;
+            padding: 20px;
+            border: 2px solid #000;
+            background-color: #fff;
+        }
+
+        .active {
+            display: block;
+        }
+
+        h1 {
+            color: #0000ff;
+            font-size: 24px;
+        }
+
+        input[type="text"], input[type="checkbox"], button {
+            display: block;
+            margin: 10px 0;
+            padding: 5px;
+            border: 1px solid #000;
+            background-color: #fff;
+            font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+          
+        }
+
+        .chat-container {
+            border: 1px solid #000;
+            height: 300px;
+            overflow-y: scroll;
+            background-color: #f0f0f0;
+        }
+
+        .chat-input-container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .message {
+            padding: 5px;
+            border-bottom: 1px solid #000;
+            position: relative;
+            font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+        }
+
+        .user .username {
+            font-weight: bold;
+            color: #ff0000;
+        }
+
+        .delete-btn {
+            background: url('https://cdn-icons-png.flaticon.com/512/1214/1214428.png') no-repeat center center;
+            background-size: cover;
+            width: 20px;
+            height: 20px;
+            border: none;
+            position: absolute;
+            right: 5px;
+            top: 0; /* Move the delete button up */
+            transform: translateY(-35%); /* Adjusts for better alignment */
+            cursor: pointer;
+        }
+          @media (max-width: 600px) {
+        .container {
+            margin: 10px;
+            padding: 10px;
+        }
+
+        .message {
+            padding: 10px;
+        }
+
+        .delete-btn {
+            width: 15px;
+            height: 20px;
+            transform: translateY(-15%); /* Adjusts for better alignment */
+          
+        }
+    }
+    </style>
+</head>
+<body>
+    <div class="container" id="signup-container">
+        <h1>Sign Up</h1>
+        <input type="text" id="username" placeholder="Enter your username">
+        <div>
+          <label for="keep-logged-in">Keep me logged in</label>
+            <input type="checkbox" id="keep-logged-in">
+        </div>
+        <button onclick="signUp()">Sign Up</button>
+    </div>
+
+    <div class="container" id="chat-container">
+        <button class="lgout" onclick="logout()">Logout</button>
+        <div class="chat-container" id="chat-messages">
+            <!-- Messages will be displayed here -->
+        </div>
+        <div class="chat-input-container">
+            <input type="text" id="message-input" placeholder="Type a message">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+        const socket = io();
+        let username;
+var usernameInput = document.getElementById('username')
+        function showScreen(id) {
+            document.querySelectorAll('.container').forEach(container => {
+                container.classList.remove('active');
+            });
+            document.getElementById(id).classList.add('active');
+        }
+
+        function signUp() {
+          
+            username = document.getElementById('username').value;
+            const keepLoggedIn = document.getElementById('keep-logged-in').checked;
+        
+            if (username) {
+                localStorage.setItem('username', username);
+                if (keepLoggedIn) {
+                    localStorage.setItem('keepLoggedIn', 'true');
+                } else {
+                    localStorage.removeItem('keepLoggedIn');
+                }
+                socket.emit('join', username);
+                showScreen('chat-container');
+                Toastify({
+                    text: "Successfully signed up!",
+                    duration: 3000,
+                    close: false,
+                    gravity: "bottom",
+                    position: "center",
+                    backgroundColor: "#4CAF50"
+                }).showToast();
+            } else {
+                Toastify({
+                    text: "Please enter a username.",
+                    duration: 3000,
+                    close: false,
+                    gravity: "bottom",
+                    position: "center",
+                    backgroundColor: "#FF0000"
+                }).showToast();
+            }
+        }
+usernameInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                signUp();
+            }
+        });
+        function addMessage(username, message, isUser = false, messageId) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.dataset.messageId = messageId;
+
+            if (isUser) {
+                messageElement.classList.add('user');
+                messageElement.innerHTML = `<span class="username">${username}: </span>
+                                           <span class="text">${message}</span>
+                                           <button class="delete-btn" onclick="deleteMessage('${messageId}')"></button>`;
+            } else {
+                messageElement.innerHTML = `<span class="username">${username}: </span>
+                                           <span class="text">${message}</span>`;
+            }
+
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            if (message) {
+                const messageId = Math.random(); // Generate unique message ID using UUID
+                socket.emit('message', { username, message, messageId });
+                messageInput.value = '';
+                Toastify({
+                    text: "Message sent!",
+                    duration: 3000,
+                    close: false,
+                    gravity: "bottom",
+                    position: "center",
+                    background: "#4CAF50"
+                }).showToast();
+            }
+        }
+
+        function deleteMessage(messageId) {
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.remove();
+                socket.emit('delete', { username, messageId });
+                Toastify({
+                    text: "Message deleted!",
+                    duration: 3000,
+                    close: false,
+                    gravity: "bottom",
+                    position: "center",
+                    background: "#FF0000"
+                }).showToast();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('username');
+            localStorage.removeItem('keepLoggedIn');
+            showScreen('signup-container');
+            socket.disconnect();
+            Toastify({
+                text: "Logged out!",
+                duration: 3000,
+                close: false,
+                gravity: "bottom",
+                position: "center",
+                background: "#FF0000"
+            }).showToast();
+        }
+
+        socket.on('message', (data) => {
+            addMessage(data.username, data.message, data.username === username, data.messageId);
+        });
+
+        socket.on('delete', (data) => {
+            const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+            if (messageElement) {
+                messageElement.remove();
+            }
+        });
+
+        window.onload = function() {
+            const savedUsername = localStorage.getItem('username');
+            const keepLoggedIn = localStorage.getItem('keepLoggedIn');
+            if (keepLoggedIn && savedUsername) {
+                username = savedUsername;
+                socket.emit('join', username);
+                showScreen('chat-container');
+            } else {
+                showScreen('signup-container');
+            }
+        };
+
+        const messageInput = document.getElementById('message-input');
+        messageInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
